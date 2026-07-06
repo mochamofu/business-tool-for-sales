@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GIN フォーム営業オプティマイザー</title>
+<style>
+  :root {
+    --green: #1f6f43;
+    --green-dark: #14522f;
+    --green-light: #e8f3ec;
+    --ink: #1c2420;
+    --sub: #5c6b62;
+    --bg: #f6f8f6;
+    --card: #ffffff;
+    --line: #dde5df;
+    --warn-bg: #fff7e6;
+    --warn-line: #e6c98a;
+    --danger: #b23a3a;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.65; font-size: 14px;
+  }
+  header {
+    background: var(--green-dark); color: #fff; padding: 16px 24px;
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 18px; font-weight: 700; letter-spacing: .04em; }
+  header .tagline { font-size: 12px; opacity: .85; }
+  nav.tabs {
+    display: flex; gap: 2px; background: var(--green-dark); padding: 0 16px;
+    overflow-x: auto;
+  }
+  nav.tabs button {
+    appearance: none; border: none; cursor: pointer;
+    padding: 10px 18px; font-size: 13.5px; font-weight: 600;
+    background: rgba(255,255,255,.12); color: #dfeae3;
+    border-radius: 8px 8px 0 0; white-space: nowrap;
+  }
+  nav.tabs button.active { background: var(--bg); color: var(--green-dark); }
+  main { max-width: 1080px; margin: 0 auto; padding: 20px 16px 80px; }
+  section.panel { display: none; }
+  section.panel.active { display: block; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 20px; margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; color: var(--green-dark); margin-bottom: 12px; }
+  .card h3 { font-size: 13.5px; margin: 14px 0 6px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  @media (max-width: 720px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+  label.field { display: block; font-size: 12px; color: var(--sub); font-weight: 600; margin-bottom: 10px; }
+  label.field span.req { color: var(--danger); margin-left: 2px; }
+  input[type="text"], input[type="password"], select, textarea {
+    width: 100%; margin-top: 4px; padding: 8px 10px; font-size: 13.5px;
+    border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--ink);
+    font-family: inherit;
+  }
+  textarea { resize: vertical; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); outline-offset: -1px; }
+  .btn {
+    appearance: none; cursor: pointer; border: none; border-radius: 7px;
+    padding: 9px 18px; font-size: 13.5px; font-weight: 700;
+    background: var(--green); color: #fff;
+  }
+  .btn:hover { background: var(--green-dark); }
+  .btn.secondary { background: #fff; color: var(--green-dark); border: 1.5px solid var(--green); }
+  .btn.ghost { background: transparent; color: var(--sub); border: 1px solid var(--line); font-weight: 600; }
+  .btn.small { padding: 5px 12px; font-size: 12px; }
+  .btn.danger { background: #fff; color: var(--danger); border: 1px solid var(--danger); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .notice {
+    background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: var(--radius);
+    padding: 12px 16px; font-size: 12.5px; margin-bottom: 16px;
+  }
+  .notice strong { color: #8a6100; }
+  .pill {
+    display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 10px;
+    border-radius: 999px; background: var(--green-light); color: var(--green-dark);
+    margin-right: 6px;
+  }
+  .pill.gray { background: #eef1ef; color: var(--sub); }
+  .pill.red { background: #fbeaea; color: var(--danger); }
+  .pill.blue { background: #e7eefc; color: #2b4f9e; }
+  .stat-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .stat {
+    flex: 1; min-width: 130px; background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 12px 16px;
+  }
+  .stat .num { font-size: 24px; font-weight: 800; color: var(--green-dark); }
+  .stat .lbl { font-size: 11.5px; color: var(--sub); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 11.5px; color: var(--sub); background: #f2f5f2; }
+  .msg-output {
+    white-space: pre-wrap; background: #fbfdfb; border: 1px solid var(--line);
+    border-radius: 8px; padding: 14px 16px; font-size: 13.5px; margin-top: 8px;
+  }
+  .msg-output .ph { background: #fdf0d5; border-radius: 3px; padding: 0 2px; }
+  .seg-card {
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px;
+    margin-bottom: 12px; background: var(--card); display: flex; gap: 14px;
+  }
+  .seg-rank {
+    font-size: 22px; font-weight: 800; color: var(--green); min-width: 42px;
+    text-align: center; padding-top: 2px;
+  }
+  .seg-body { flex: 1; }
+  .seg-body h3 { margin: 0 0 4px; font-size: 14.5px; }
+  .seg-meta { font-size: 12px; color: var(--sub); margin-top: 6px; }
+  .seg-meta b { color: var(--ink); }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+  .muted { color: var(--sub); font-size: 12px; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: #fff; padding: 10px 22px; border-radius: 999px;
+    font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 99;
+  }
+  .toast.show { opacity: .95; }
+  details.adv { margin-top: 10px; }
+  details.adv summary { cursor: pointer; font-size: 12.5px; color: var(--green-dark); font-weight: 700; }
+  .dup-flag { color: var(--danger); font-weight: 700; font-size: 11.5px; }
+  .charcount { font-size: 11.5px; color: var(--sub); text-align: right; margin-top: 4px; }
+  footer {
+    text-align: center; padding: 20px; font-size: 11.5px; color: var(--sub);
+    border-top: 1px solid var(--line); margin-top: 30px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🌿 GIN フォーム営業オプティマイザー</h1>
+  <span class="tagline">目的・商品・売り方を入力 → 最適化された営業文と送り先を提案。リスト被り防止つき。</span>
+</header>
+
+<nav class="tabs">
+  <button data-tab="setup" class="active">① 設定入力</button>
+  <button data-tab="targets">② 送り先の提案</button>
+  <button data-tab="compose">③ 営業文の生成</button>
+  <button data-tab="list">④ リスト管理・被り防止</button>
+</nav>
+
+<main>
+
+<div class="notice">
+  <strong>⚠ 運用ポリシー:</strong> このツールは営業文の作成・送り先の選定・送信記録の管理を支援します。
+  フォームへの<strong>自動一括送信は行いません</strong>（送信は必ず人が内容を確認して行う設計です）。
+  送信先の問い合わせフォームに「営業目的の利用禁止」の記載がある場合は送信しないでください。
+  化粧品のため、効能表現は薬機法の範囲内（「頭皮をすこやかに保つ」「フケ・かゆみを防ぐ」等）に留めてください。
+</div>
+
+<!-- ========== ① 設定入力 ========== -->
+<section class="panel active" id="panel-setup">
+  <div class="card">
+    <h2>1. 営業の目的 <span class="muted">— 何のために送るか</span></h2>
+    <div class="grid2">
+      <label class="field">目的<span class="req">*</span>
+        <select id="in-purpose">
+          <option value="wholesale">卸・取扱店の開拓（小売店に置いてもらう）</option>
+          <option value="salon">サロン・施設への導入（業務用・店販）</option>
+          <option value="collab">コラボ・タイアップ / メディア掲載</option>
+          <option value="gift">ギフト・ノベルティとしての採用</option>
+          <option value="ec">ECモール・セレクトショップへの出品</option>
+          <option value="custom">その他（下に自由入力）</option>
+        </select>
+      </label>
+      <label class="field">目的の補足（任意 / 「その他」の場合は必須）
+        <input type="text" id="in-purpose-note" placeholder="例: 年内に取扱店を10店舗つくりたい">
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. 商品情報 <span class="muted">— 何を売り込むか</span></h2>
+    <div class="grid2">
+      <label class="field">商品名<span class="req">*</span>
+        <input type="text" id="in-product-name" value="GIN オーガニックシャンプー＆コンディショナー">
+      </label>
+      <label class="field">カテゴリ
+        <input type="text" id="in-product-category" value="オーガニックヘアケア製品（化粧品）">
+      </label>
+    </div>
+    <label class="field">商品の説明（1〜2文）<span class="req">*</span>
+      <textarea id="in-product-desc" rows="2">伝統的な製法にこだわり、開発者が一人で作り上げたオーガニックシャンプーです。頭皮と髪をすこやかに保ち、家族全員で使えるやさしい使い心地が特徴です。</textarea>
+    </label>
+    <label class="field">価格・取引条件
+      <input type="text" id="in-price" value="小売価格 3,300円（税込）/ 卸掛率・ロットはご相談">
+    </label>
+    <label class="field">強み・差別化ポイント（改行区切りで最大3つ）
+      <textarea id="in-strengths" rows="3">広告費をかけず中身に投資した処方
+開発者本人が問い合わせに対応する小規模ブランドならではの柔軟さ
+"for you and your family's happiness" — 家族で使える世界観</textarea>
+    </label>
+  </div>
+
+  <div class="card">
+    <h2>3. 売り込み方・送信者ペルソナ <span class="muted">— どう売り込むか / 誰として送るか</span></h2>
+    <div class="grid3">
+      <label class="field">会社名 / 屋号<span class="req">*</span>
+        <input type="text" id="in-sender-company" placeholder="例: cocorolab">
+      </label>
+      <label class="field">担当者名<span class="req">*</span>
+        <input type="text" id="in-sender-name" placeholder="例: 山田 太郎">
+      </label>
+      <label class="field">肩書き
+        <input type="text" id="in-sender-title" placeholder="例: 代表 / 開発者">
+      </label>
+    </div>
+    <div class="grid2">
+      <label class="field">連絡先（メール等）<span class="req">*</span>
+        <input type="text" id="in-sender-contact" placeholder="例: info@cocorolab.co.jp">
+      </label>
+      <label class="field">サイトURL（任意）
+        <input type="text" id="in-sender-url" placeholder="例: https://...">
+      </label>
+    </div>
+    <div class="grid2">
+      <label class="field">トーン（文体ペルソナ）
+        <select id="in-tone">
+          <option value="story">誠実・ストーリー型（開発者の顔が見える文面）</option>
+          <option value="biz">簡潔・提案型（要点先出しのビジネス文面）</option>
+          <option value="you">相手起点型（相手のメリットから書き出す文面）</option>
+        </select>
+      </label>
+      <label class="field">ゴール（CTA）
+        <select id="in-cta">
+          <option value="doc">資料・サンプル送付の許可をもらう</option>
+          <option value="meeting">5〜15分のオンライン商談を打診する</option>
+          <option value="reply">まず返信をもらう（ハードル最小）</option>
+        </select>
+      </label>
+    </div>
+    <label class="field"><input type="checkbox" id="in-include-url" checked style="width:auto;margin-right:6px;">本文にURLを含める（フォームによってはURL入力で弾かれるため、送信先に応じて切替）</label>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn" onclick="saveSettings(); showToast('設定を保存しました'); switchTab('targets');">保存して送り先の提案へ →</button>
+    <button class="btn ghost" onclick="saveSettings(); showToast('設定を保存しました');">保存のみ</button>
+  </div>
+</section>
+
+<!-- ========== ② 送り先の提案 ========== -->
+<section class="panel" id="panel-targets">
+  <div class="card">
+    <h2>おすすめの送り先セグメント</h2>
+    <p class="muted">①で選んだ目的に基づき、相性の良い業種を優先度順に提案します。「この業種で生成」を押すと③の営業文がその業種の決裁者向けに調整されます。</p>
+  </div>
+  <div id="segment-list"></div>
+</section>
+
+<!-- ========== ③ 営業文の生成 ========== -->
+<section class="panel" id="panel-compose">
+  <div class="card">
+    <h2>営業文の生成</h2>
+    <div class="grid3">
+      <label class="field">送り先セグメント
+        <select id="compose-segment"></select>
+      </label>
+      <label class="field">宛先の会社（④のリストから / 未選択なら {{会社名}} のまま）
+        <select id="compose-company"><option value="">— 未選択 —</option></select>
+      </label>
+      <label class="field">トーン
+        <select id="compose-tone">
+          <option value="story">誠実・ストーリー型</option>
+          <option value="biz">簡潔・提案型</option>
+          <option value="you">相手起点型</option>
+        </select>
+      </label>
+    </div>
+    <div class="toolbar">
+      <button class="btn" onclick="renderMessage()">文面を生成する</button>
+      <button class="btn secondary" onclick="copyText(currentSubject); ">件名をコピー</button>
+      <button class="btn secondary" onclick="copyText(currentBody)">本文をコピー</button>
+      <button class="btn ghost" id="btn-mark-sent" onclick="markSelectedSent()" disabled>この会社を送信済みにする</button>
+    </div>
+
+    <h3>件名</h3>
+    <div class="msg-output" id="out-subject">（「文面を生成する」を押してください）</div>
+    <h3>本文</h3>
+    <div class="msg-output" id="out-body"></div>
+    <div class="charcount" id="out-count"></div>
+  </div>
+
+  <div class="card">
+    <h2>🤖 Claudeでさらに最適化する</h2>
+    <p class="muted">上のテンプレート文面を土台に、会社ごとの完全パーソナライズ文をClaudeに書かせます。方法は2つ:</p>
+    <h3>方法A: プロンプトをコピーしてClaude（claude.ai等）に貼り付け</h3>
+    <div class="toolbar">
+      <button class="btn secondary" onclick="copyText(buildClaudePrompt())">最適化プロンプトをコピー</button>
+      <span class="muted">← 全設定＋宛先情報入りのプロンプトが生成されます</span>
+    </div>
+    <h3>方法B: Claude APIで直接生成（APIキーが必要）</h3>
+    <div class="grid2">
+      <label class="field">Anthropic APIキー（ブラウザ内のみで使用・任意でこの端末に保存）
+        <input type="password" id="in-api-key" placeholder="sk-ant-...">
+      </label>
+      <label class="field" style="display:flex;align-items:flex-end;gap:8px;">
+        <button class="btn" onclick="callClaude()" id="btn-claude">APIで生成する</button>
+        <label style="font-weight:400;"><input type="checkbox" id="in-save-key" style="width:auto;margin-right:4px;">キーを保存</label>
+      </label>
+    </div>
+    <div class="msg-output" id="claude-output" style="display:none;"></div>
+    <div class="toolbar" id="claude-copy-bar" style="display:none;">
+      <button class="btn secondary" onclick="copyText(document.getElementById('claude-output').textContent)">生成結果をコピー</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>✍ フォーム営業の型（このツールの生成ルール）</h2>
+    <ul style="padding-left:20px; font-size:13px;">
+      <li><b>本文は500〜700字</b>。フォームの文字数制限と読み手の負荷を考慮。</li>
+      <li><b>1通につきCTAは1つ</b>。「資料送付の許可」など返信ハードルの低いお願いに絞る。</li>
+      <li><b>冒頭2行で「誰が・なぜ貴社に」</b>を言い切る。テンプレ一斉送信に見える文面は読まれない。</li>
+      <li><b>相手固有の一文（{{会社名}}への言及）</b>を必ず入れる。Claudeで最適化する場合はここが最も効く。</li>
+      <li><b>薬機法:</b> 「治る・生える・改善」はNG。「すこやかに保つ・防ぐ・うるおいを与える」の範囲で。</li>
+      <li><b>営業お断りの明記があるフォームには送らない。</b>返信で断られた企業はNGステータスにして再送しない。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ========== ④ リスト管理 ========== -->
+<section class="panel" id="panel-list">
+  <div class="stat-row">
+    <div class="stat"><div class="num" id="stat-total">0</div><div class="lbl">リスト総数</div></div>
+    <div class="stat"><div class="num" id="stat-unsent">0</div><div class="lbl">未送信</div></div>
+    <div class="stat"><div class="num" id="stat-sent">0</div><div class="lbl">送信済み</div></div>
+    <div class="stat"><div class="num" id="stat-reply">0</div><div class="lbl">返信あり</div></div>
+    <div class="stat"><div class="num" id="stat-today">0</div><div class="lbl">今日の送信数</div></div>
+  </div>
+
+  <div class="card">
+    <h2>リストの追加（被り防止つき）</h2>
+    <p class="muted">1行1社で貼り付けてください。形式: <b>会社名, URL（任意）, 業種メモ（任意）</b>（カンマ or タブ区切り）。
+    会社名は「株式会社」等の表記ゆれ・全半角を正規化して照合し、<b>既存リスト・送信済みと重複する行は自動でスキップ</b>します。</p>
+    <textarea id="in-bulk" rows="5" placeholder="例:
+株式会社サンプル美容室, https://sample-salon.jp, 美容室
+（株）ナチュラル商店,, セレクトショップ"></textarea>
+    <div class="toolbar">
+      <label class="field" style="margin:0;">セグメント割当
+        <select id="in-bulk-segment"></select>
+      </label>
+      <button class="btn" onclick="bulkAdd()">リストに追加（重複チェック）</button>
+      <button class="btn ghost" onclick="exportCsv()">CSVエクスポート</button>
+      <button class="btn danger small" onclick="clearAll()">全データ削除</button>
+    </div>
+    <div id="dup-report" class="muted"></div>
+  </div>
+
+  <div class="card">
+    <h2>送信先リスト</h2>
+    <div class="toolbar">
+      <label class="field" style="margin:0;">絞り込み
+        <select id="filter-status" onchange="renderList()">
+          <option value="">すべて</option>
+          <option value="unsent">未送信</option>
+          <option value="sent">送信済み</option>
+          <option value="replied">返信あり</option>
+          <option value="ng">NG（送らない）</option>
+        </select>
+      </label>
+    </div>
+    <table>
+      <thead><tr><th>会社名</th><th>URL</th><th>業種/セグメント</th><th>状態</th><th>送信日</th><th>操作</th></tr></thead>
+      <tbody id="list-body"></tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  GIN Form Sales Optimizer — データはこのブラウザのローカルストレージにのみ保存されます。送信は必ず内容を確認のうえ手動で行ってください。
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ============ データ定義 ============ */
+
+const PURPOSES = {
+  wholesale: { label: "卸・取扱店の開拓",
+    proposal: "貴店でのお取り扱い（卸販売）についてご相談させていただきたく、ご連絡いたしました。",
+    subject: "お取り扱いのご相談" },
+  salon: { label: "サロン・施設への導入",
+    proposal: "貴店での業務用・店販商品としての導入についてご提案させていただきたく、ご連絡いたしました。",
+    subject: "サロン導入のご提案" },
+  collab: { label: "コラボ・メディア掲載",
+    proposal: "貴社とのコラボレーションや記事でのご紹介についてご相談させていただきたく、ご連絡いたしました。",
+    subject: "コラボ・掲載のご相談" },
+  gift: { label: "ギフト・ノベルティ採用",
+    proposal: "ギフト・ノベルティ商材としての採用についてご提案させていただきたく、ご連絡いたしました。",
+    subject: "ギフト商材のご提案" },
+  ec: { label: "EC・セレクトショップ出品",
+    proposal: "貴ストアでのお取り扱い・出品についてご相談させていただきたく、ご連絡いたしました。",
+    subject: "出品・お取り扱いのご相談" },
+  custom: { label: "その他",
+    proposal: "下記の件でご相談させていただきたく、ご連絡いたしました。",
+    subject: "ご相談" },
+};
+
+// スコア: 目的ごとの適合度(1-5)
+const SEGMENTS = [
+  { id: "salon", name: "美容室・ヘアサロン",
+    persona: "オーナー兼スタイリスト。店販の粗利と「他店に置いていない商材」を重視。",
+    hook: "お客様への店販商材やサロン専売品をお探しの美容室様に多くお声がけしております。",
+    finder: "ホットペッパービューティー・Googleマップで地域検索 → 各店の公式サイトの問い合わせフォームへ",
+    decision: "オーナー / 店長",
+    scores: { wholesale: 5, salon: 5, collab: 3, gift: 2, ec: 1 } },
+  { id: "organic-shop", name: "オーガニック・ナチュラル系セレクトショップ",
+    persona: "バイヤー。ブランドの背景・作り手の物語・原料へのこだわりで仕入れを判断。",
+    hook: "作り手の顔が見えるオーガニック商材を扱われている貴店に、ぜひ一度ご覧いただきたくご連絡しました。",
+    finder: "「オーガニック セレクトショップ」「ナチュラル雑貨 店舗」で検索、百貨店の催事出店リストも有効",
+    decision: "バイヤー / 店舗責任者",
+    scores: { wholesale: 5, salon: 1, collab: 4, gift: 3, ec: 4 } },
+  { id: "hotel", name: "ホテル・旅館・ゲストハウス",
+    persona: "支配人・購買担当。アメニティの差別化と客室単価アップの材料を探している。",
+    hook: "客室アメニティやスパ・大浴場での差別化商材として、宿泊施設様からのお問い合わせが増えております。",
+    finder: "地域×「オーベルジュ」「温泉旅館」で検索。小〜中規模で世界観重視の宿が狙い目",
+    decision: "支配人 / 購買・仕入担当",
+    scores: { wholesale: 4, salon: 4, collab: 3, gift: 3, ec: 1 } },
+  { id: "esthe", name: "エステ・リラクゼーション・ヨガスタジオ",
+    persona: "オーナー。顧客との信頼関係が深く、こだわりの物販が売上に直結する。",
+    hook: "お客様の肌や髪への意識が高い業態のため、店販との相性が良いとお声をいただいております。",
+    finder: "地域×「プライベートエステ」「ヨガスタジオ」で検索。個人経営店は決裁が早い",
+    decision: "オーナー",
+    scores: { wholesale: 4, salon: 5, collab: 2, gift: 2, ec: 1 } },
+  { id: "media", name: "美容系メディア・ライフスタイル誌",
+    persona: "編集者・ライター。「個人開発」「正直な価格の理由」など記事になる切り口を求めている。",
+    hook: "「たった一人で作ったオーガニックシャンプー」という切り口で、読み物としてご紹介いただけないかと思いご連絡しました。",
+    finder: "美容系Webメディアの「お問い合わせ」「情報提供」フォーム、出版社の編集部窓口",
+    decision: "編集部 / 担当ライター",
+    scores: { wholesale: 1, salon: 1, collab: 5, gift: 1, ec: 1 } },
+  { id: "gift-company", name: "ギフト・カタログ通販・内祝い事業者",
+    persona: "MD担当。「家族向け」「出産内祝い」など贈答文脈に合う商材を常時探している。",
+    hook: "家族で使えるやさしい処方のため、出産内祝いや引出物などの贈答用途でご好評いただいております。",
+    finder: "「カタログギフト 掲載商品 募集」「ギフトショー 出展」で検索。商材募集ページを持つ企業が多い",
+    decision: "MD / 商品企画担当",
+    scores: { wholesale: 3, salon: 1, collab: 2, gift: 5, ec: 3 } },
+  { id: "maternity", name: "産婦人科・産後ケア・ベビー用品店",
+    persona: "施設運営者・店主。低刺激・家族で使える点が最重要。安全性の説明を求める。",
+    hook: "ご家族みんなで使えるやさしい処方のため、産前産後のお客様が多い貴施設と親和性が高いと考えご連絡しました。",
+    finder: "地域×「産後ケアホテル」「助産院」「ベビーセレクトショップ」で検索",
+    decision: "院長 / 施設長 / 店主",
+    scores: { wholesale: 4, salon: 3, collab: 2, gift: 4, ec: 2 } },
+  { id: "ec-mall", name: "ECモール・オンラインセレクトショップ",
+    persona: "出店審査・バイヤー担当。ブランドストーリーと商品画像の質、供給安定性を見る。",
+    hook: "こだわりの日用品を扱われている貴ストアのラインナップに合うのではないかと思い、ご連絡いたしました。",
+    finder: "「オーガニックコスメ 通販サイト」「出品者募集」で検索。BASE/STORES系の編集型モールも対象",
+    decision: "バイヤー / 出店審査担当",
+    scores: { wholesale: 3, salon: 1, collab: 2, gift: 2, ec: 5 } },
+  { id: "novelty", name: "企業ノベルティ・福利厚生代理店",
+    persona: "法人営業担当。クライアント企業に提案できる「ちょっと良い」記念品を探している。",
+    hook: "SDGs・ウェルネス文脈の記念品として法人様にご提案いただける商材かと思い、ご連絡いたしました。",
+    finder: "「ノベルティ 代理店」「福利厚生 サービス 企業」で検索",
+    decision: "法人営業 / 企画担当",
+    scores: { wholesale: 2, salon: 1, collab: 2, gift: 5, ec: 1 } },
+  { id: "local", name: "地域商社・ふるさと納税関連事業者",
+    persona: "地域産品の発掘担当。生産背景が語れる商品を求めている。",
+    hook: "地域発・作り手の顔が見える商品として、貴社の取り扱い商材に加えていただけないかと思いご連絡しました。",
+    finder: "「地域商社」「ふるさと納税 中間事業者」＋製造地の都道府県名で検索",
+    decision: "商品開発 / 産品発掘担当",
+    scores: { wholesale: 4, salon: 1, collab: 3, gift: 3, ec: 3 } },
+];
+
+/* ============ 状態管理 ============ */
+
+const LS_KEY = "gin-form-sales-v1";
+let state = { settings: {}, companies: [] };
+let currentSubject = "";
+let currentBody = "";
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) state = Object.assign(state, JSON.parse(raw));
+  } catch (e) { /* 破損時は初期状態で開始 */ }
+}
+function persist() { localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+
+const $ = (id) => document.getElementById(id);
+
+const SETTING_FIELDS = {
+  purpose: "in-purpose", purposeNote: "in-purpose-note",
+  productName: "in-product-name", productCategory: "in-product-category",
+  productDesc: "in-product-desc", price: "in-price", strengths: "in-strengths",
+  senderCompany: "in-sender-company", senderName: "in-sender-name",
+  senderTitle: "in-sender-title", senderContact: "in-sender-contact",
+  senderUrl: "in-sender-url", tone: "in-tone", cta: "in-cta",
+};
+
+function saveSettings() {
+  const s = {};
+  for (const [key, id] of Object.entries(SETTING_FIELDS)) s[key] = $(id).value.trim();
+  s.includeUrl = $("in-include-url").checked;
+  state.settings = s;
+  persist();
+  renderSegments();
+  syncComposeControls();
+}
+
+function restoreSettings() {
+  const s = state.settings || {};
+  for (const [key, id] of Object.entries(SETTING_FIELDS)) {
+    if (s[key] !== undefined && s[key] !== "") $(id).value = s[key];
+  }
+  if (s.includeUrl !== undefined) $("in-include-url").checked = s.includeUrl;
+}
+
+/* ============ タブ ============ */
+
+function switchTab(name) {
+  document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  document.querySelectorAll("section.panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + name));
+  if (name === "targets") renderSegments();
+  if (name === "compose") syncComposeControls();
+  if (name === "list") renderList();
+}
+document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => { saveSettings(); switchTab(b.dataset.tab); }));
+
+/* ============ ② 送り先提案 ============ */
+
+function rankedSegments() {
+  const purpose = state.settings.purpose || "wholesale";
+  const key = purpose === "custom" ? "wholesale" : purpose;
+  return SEGMENTS.slice().sort((a, b) => (b.scores[key] || 0) - (a.scores[key] || 0));
+}
+
+function renderSegments() {
+  const purpose = state.settings.purpose || $("in-purpose").value;
+  const key = purpose === "custom" ? "wholesale" : purpose;
+  const box = $("segment-list");
+  box.innerHTML = "";
+  rankedSegments().forEach((seg, i) => {
+    const score = seg.scores[key] || 0;
+    const stars = "★".repeat(score) + "☆".repeat(5 - score);
+    const div = document.createElement("div");
+    div.className = "seg-card";
+    div.innerHTML = `
+      <div class="seg-rank">${i + 1}</div>
+      <div class="seg-body">
+        <h3>${seg.name} <span class="pill">適合度 ${stars}</span></h3>
+        <div>${seg.hook}</div>
+        <div class="seg-meta">
+          <b>読み手のペルソナ:</b> ${seg.persona}<br>
+          <b>決裁者:</b> ${seg.decision} ｜ <b>リストの集め方:</b> ${seg.finder}
+        </div>
+        <div class="toolbar">
+          <button class="btn small" onclick="pickSegment('${seg.id}')">この業種で営業文を生成 →</button>
+        </div>
+      </div>`;
+    box.appendChild(div);
+  });
+}
+
+function pickSegment(id) {
+  switchTab("compose");
+  $("compose-segment").value = id;
+  renderMessage();
+}
+
+/* ============ ③ 営業文生成 ============ */
+
+function syncComposeControls() {
+  const segSel = $("compose-segment");
+  const bulkSel = $("in-bulk-segment");
+  const ranked = rankedSegments();
+  const fill = (sel) => {
+    const cur = sel.value;
+    sel.innerHTML = "";
+    ranked.forEach(s => {
+      const o = document.createElement("option");
+      o.value = s.id; o.textContent = s.name;
+      sel.appendChild(o);
+    });
+    if (cur && ranked.some(s => s.id === cur)) sel.value = cur;
+  };
+  fill(segSel); fill(bulkSel);
+  $("compose-tone").value = state.settings.tone || "story";
+
+  const cSel = $("compose-company");
+  const cur = cSel.value;
+  cSel.innerHTML = '<option value="">— 未選択 —</option>';
+  state.companies.filter(c => c.status === "unsent").forEach(c => {
+    const o = document.createElement("option");
+    o.value = c.id; o.textContent = c.name;
+    cSel.appendChild(o);
+  });
+  if (cur && state.companies.some(c => String(c.id) === cur && c.status === "unsent")) cSel.value = cur;
+}
+
+function getSegment(id) { return SEGMENTS.find(s => s.id === id) || SEGMENTS[0]; }
+
+const CTA_TEXT = {
+  doc: "ご興味をお持ちいただけましたら、商品資料とサンプルを無償でお送りいたします。「資料希望」とだけご返信いただければ幸いです。",
+  meeting: "もしご興味をお持ちいただけましたら、5〜15分ほどオンラインでご説明の機会をいただけますと幸いです。ご都合のよい日時を2〜3いただけましたら調整いたします。",
+  reply: "まずは「話だけ聞いてみたい」「資料だけ欲しい」など、一言ご返信いただけるだけで結構です。",
+};
+
+function buildMessage() {
+  const s = state.settings;
+  const purpose = PURPOSES[s.purpose] || PURPOSES.wholesale;
+  const seg = getSegment($("compose-segment").value);
+  const tone = $("compose-tone").value;
+  const strengths = (s.strengths || "").split("\n").map(x => x.trim()).filter(Boolean).slice(0, 3);
+  const strengthLines = strengths.map(x => "・" + x).join("\n");
+  const purposeLine = s.purpose === "custom" && s.purposeNote ? s.purposeNote : purpose.proposal;
+  const cta = CTA_TEXT[s.cta] || CTA_TEXT.doc;
+  const sig = [
+    "―――――――――――――",
+    `${s.senderCompany || "{{送信者会社名}}"}　${s.senderTitle ? s.senderTitle + "　" : ""}${s.senderName || "{{担当者名}}"}`,
+    s.senderContact || "{{連絡先}}",
+    (s.includeUrl && s.senderUrl) ? s.senderUrl : null,
+  ].filter(Boolean).join("\n");
+
+  let opening, intro;
+  if (tone === "story") {
+    opening = `{{会社名}}\nご担当者様\n\n突然のご連絡失礼いたします。${s.senderCompany || "{{送信者会社名}}"}の${s.senderName || "{{担当者名}}"}と申します。「${s.productName}」という${s.productCategory || "商品"}を、開発から販売まで自分の手で行っております。`;
+    intro = `${seg.hook}\n\n${s.productDesc}`;
+  } else if (tone === "biz") {
+    opening = `{{会社名}}\nご担当者様\n\nお世話になります。${s.senderCompany || "{{送信者会社名}}"}の${s.senderName || "{{担当者名}}"}と申します。\n${purposeLine}`;
+    intro = `弊社は「${s.productName}」（${s.productCategory || "商品"}）を展開しております。\n${s.productDesc}`;
+  } else {
+    opening = `{{会社名}}\nご担当者様\n\n突然のご連絡失礼いたします。${seg.hook}\n${s.senderCompany || "{{送信者会社名}}"}の${s.senderName || "{{担当者名}}"}と申します。`;
+    intro = `私どもの「${s.productName}」は、${s.productDesc}`;
+  }
+
+  const bodyParts = [
+    opening, "", intro, "",
+    strengthLines ? `【特徴】\n${strengthLines}` : null,
+    s.price ? `【条件】${s.price}` : null,
+    "",
+    tone === "biz" ? null : purposeLine,
+    cta, "", sig,
+  ].filter(x => x !== null);
+
+  const body = bodyParts.join("\n").replace(/\n{3,}/g, "\n\n");
+  const subject = `【${purpose.subject}】${s.productName}のご案内（${s.senderCompany || "{{送信者会社名}}"}）`;
+  return { subject, body };
+}
+
+function fillCompany(text) {
+  const id = $("compose-company").value;
+  if (!id) return text;
+  const c = state.companies.find(x => String(x.id) === id);
+  return c ? text.replaceAll("{{会社名}}", c.name) : text;
+}
+
+function renderMessage() {
+  saveSettings();
+  const { subject, body } = buildMessage();
+  currentSubject = fillCompany(subject);
+  currentBody = fillCompany(body);
+  const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const hi = (t) => esc(t).replace(/\{\{(.+?)\}\}/g, '<span class="ph">{{$1}}</span>');
+  $("out-subject").innerHTML = hi(currentSubject);
+  $("out-body").innerHTML = hi(currentBody);
+  $("out-count").textContent = `本文 ${currentBody.length} 字（推奨: 500〜700字）`;
+  $("btn-mark-sent").disabled = !$("compose-company").value;
+}
+
+function markSelectedSent() {
+  const id = $("compose-company").value;
+  if (!id) return;
+  const c = state.companies.find(x => String(x.id) === id);
+  if (!c) return;
+  c.status = "sent";
+  c.sentAt = new Date().toISOString().slice(0, 10);
+  persist();
+  syncComposeControls();
+  showToast(`${c.name} を送信済みにしました`);
+  $("btn-mark-sent").disabled = true;
+}
+
+/* ============ Claude 連携 ============ */
+
+function buildClaudePrompt() {
+  saveSettings();
+  const s = state.settings;
+  const seg = getSegment($("compose-segment").value);
+  const purpose = PURPOSES[s.purpose] || PURPOSES.wholesale;
+  const companyId = $("compose-company").value;
+  const company = companyId ? state.companies.find(x => String(x.id) === companyId) : null;
+  const companyInfo = company
+    ? `- 会社名: ${company.name}\n- URL: ${company.url || "不明"}\n- 業種メモ: ${company.industry || seg.name}`
+    : `- 会社名: {{会社名}}（送信時に差し替え）\n- 業種: ${seg.name}`;
+
+  return `あなたはBtoBのフォーム営業（企業の問い合わせフォーム経由の営業）に精通したコピーライターです。以下の情報をもとに、問い合わせフォームに貼り付ける営業文（件名と本文）を作成してください。
+
+## 送信者（ペルソナ）
+- 会社: ${s.senderCompany}（担当: ${s.senderTitle || ""} ${s.senderName}）
+- 連絡先: ${s.senderContact}${s.includeUrl && s.senderUrl ? "\n- URL: " + s.senderUrl : ""}
+
+## 商品
+- 商品名: ${s.productName}
+- カテゴリ: ${s.productCategory}
+- 説明: ${s.productDesc}
+- 価格・条件: ${s.price}
+- 強み:
+${(s.strengths || "").split("\n").filter(Boolean).map(x => "  - " + x.trim()).join("\n")}
+
+## 営業の目的
+${purpose.label}${s.purposeNote ? "（補足: " + s.purposeNote + "）" : ""}
+
+## 送信先
+${companyInfo}
+- 読み手のペルソナ: ${seg.persona}
+- 決裁者: ${seg.decision}
+
+## 執筆ルール
+1. 本文は500〜700字。冒頭2行で「誰が・なぜこの会社に連絡したか」を伝える。
+2. 送信先固有の言及（事業内容・立地・こだわり等への言及）を1文入れる。URLが分かる場合はサイトを踏まえた内容にする。分からない場合は業種に合わせた自然な一文にする。
+3. CTAは1つだけ: ${CTA_TEXT[s.cta] ? CTA_TEXT[s.cta] : CTA_TEXT.doc}
+4. 化粧品のため薬機法を厳守。「治る」「生える」「改善」等の効能断定はNG。「頭皮をすこやかに保つ」「フケ・かゆみを防ぐ」「うるおいを与える」の範囲で表現する。
+5. 押し付けがましい表現・過度な自画自賛を避け、誠実なトーンで。
+6. 出力形式: 「件名:」の行、空行、本文。それ以外の解説は不要。`;
+}
+
+async function callClaude() {
+  const key = $("in-api-key").value.trim();
+  if (!key) { showToast("APIキーを入力してください"); return; }
+  if ($("in-save-key").checked) localStorage.setItem("gin-fso-apikey", key);
+
+  const btn = $("btn-claude");
+  btn.disabled = true; btn.textContent = "生成中…";
+  const out = $("claude-output");
+  out.style.display = "block";
+  out.textContent = "Claudeが営業文を作成しています…";
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: "claude-opus-4-8",
+        max_tokens: 4096,
+        thinking: { type: "adaptive" },
+        messages: [{ role: "user", content: buildClaudePrompt() }],
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || `HTTPエラー ${res.status}`);
+    if (data.stop_reason === "refusal") throw new Error("リクエストが安全性の理由で処理されませんでした。内容を見直してください。");
+    const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+    out.textContent = text || "（テキストが返されませんでした）";
+    $("claude-copy-bar").style.display = "flex";
+  } catch (e) {
+    out.textContent = "エラー: " + e.message + "\n\nAPIキーが正しいか、ネットワーク接続をご確認ください。うまくいかない場合は「方法A」のプロンプトコピーをご利用ください。";
+  } finally {
+    btn.disabled = false; btn.textContent = "APIで生成する";
+  }
+}
+
+/* ============ ④ リスト管理・被り防止 ============ */
+
+function normalizeCompany(name) {
+  return (name || "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/株式会社|有限会社|合同会社|合資会社|\(株\)|\(有\)|\(同\)|㈱|㈲/g, "")
+    .replace(/[・．，、。･]/g, "");
+}
+
+function normalizeDomain(url) {
+  if (!url) return "";
+  try {
+    const u = new URL(url.startsWith("http") ? url : "https://" + url);
+    return u.hostname.replace(/^www\./, "").toLowerCase();
+  } catch (e) { return ""; }
+}
+
+function bulkAdd() {
+  const raw = $("in-bulk").value.trim();
+  if (!raw) { showToast("追加する行がありません"); return; }
+  const segId = $("in-bulk-segment").value;
+  const existingNames = new Set(state.companies.map(c => normalizeCompany(c.name)));
+  const existingDomains = new Set(state.companies.map(c => normalizeDomain(c.url)).filter(Boolean));
+
+  let added = 0;
+  const dups = [];
+  const seenInBatch = new Set();
+
+  raw.split("\n").forEach(line => {
+    const parts = line.split(/[,\t]/).map(x => x.trim());
+    const name = parts[0];
+    if (!name) return;
+    const url = parts[1] || "";
+    const industry = parts[2] || "";
+    const nk = normalizeCompany(name);
+    const dk = normalizeDomain(url);
+    if (existingNames.has(nk) || seenInBatch.has(nk) || (dk && existingDomains.has(dk))) {
+      dups.push(name);
+      return;
+    }
+    seenInBatch.add(nk);
+    if (dk) existingDomains.add(dk);
+    state.companies.push({
+      id: Date.now() + Math.floor(Math.random() * 100000) + added,
+      name, url, industry, segment: segId,
+      status: "unsent", sentAt: "", addedAt: new Date().toISOString().slice(0, 10),
+    });
+    added++;
+  });
+
+  persist();
+  $("in-bulk").value = "";
+  $("dup-report").innerHTML = dups.length
+    ? `✅ ${added}社を追加。 <span class="dup-flag">⛔ 重複スキップ ${dups.length}社:</span> ${dups.map(d => escHtml(d)).join(" / ")}`
+    : `✅ ${added}社を追加しました（重複なし）。`;
+  renderList();
+  syncComposeControls();
+}
+
+function escHtml(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+const STATUS_LABEL = {
+  unsent: '<span class="pill gray">未送信</span>',
+  sent: '<span class="pill">送信済み</span>',
+  replied: '<span class="pill blue">返信あり</span>',
+  ng: '<span class="pill red">NG</span>',
+};
+
+function renderList() {
+  const filter = $("filter-status").value;
+  const tbody = $("list-body");
+  tbody.innerHTML = "";
+  const rows = state.companies.filter(c => !filter || c.status === filter);
+  rows.forEach(c => {
+    const seg = SEGMENTS.find(s => s.id === c.segment);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escHtml(c.name)}</td>
+      <td>${c.url ? `<a href="${escHtml(c.url)}" target="_blank" rel="noopener">${escHtml(normalizeDomain(c.url) || c.url)}</a>` : '<span class="muted">—</span>'}</td>
+      <td>${escHtml(c.industry || (seg ? seg.name : ""))}</td>
+      <td>${STATUS_LABEL[c.status] || c.status}</td>
+      <td>${c.sentAt || '<span class="muted">—</span>'}</td>
+      <td>
+        <select onchange="setStatus(${c.id}, this.value)" style="width:auto;padding:3px 6px;font-size:12px;">
+          <option value="">状態変更…</option>
+          <option value="unsent">未送信に戻す</option>
+          <option value="sent">送信済み</option>
+          <option value="replied">返信あり</option>
+          <option value="ng">NG（送らない）</option>
+        </select>
+        <button class="btn ghost small" onclick="removeCompany(${c.id})">削除</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="muted">データがありません。上のフォームからリストを追加してください。</td></tr>';
+  }
+  updateStats();
+}
+
+function setStatus(id, status) {
+  if (!status) return;
+  const c = state.companies.find(x => x.id === id);
+  if (!c) return;
+  c.status = status;
+  if (status === "sent" && !c.sentAt) c.sentAt = new Date().toISOString().slice(0, 10);
+  if (status === "unsent") c.sentAt = "";
+  persist(); renderList(); syncComposeControls();
+}
+
+function removeCompany(id) {
+  state.companies = state.companies.filter(x => x.id !== id);
+  persist(); renderList(); syncComposeControls();
+}
+
+function clearAll() {
+  if (!confirm("リストと送信履歴をすべて削除します。よろしいですか？")) return;
+  state.companies = [];
+  persist(); renderList(); syncComposeControls();
+}
+
+function updateStats() {
+  const today = new Date().toISOString().slice(0, 10);
+  const by = (st) => state.companies.filter(c => c.status === st).length;
+  $("stat-total").textContent = state.companies.length;
+  $("stat-unsent").textContent = by("unsent");
+  $("stat-sent").textContent = by("sent") + by("replied");
+  $("stat-reply").textContent = by("replied");
+  $("stat-today").textContent = state.companies.filter(c => c.sentAt === today).length;
+}
+
+function exportCsv() {
+  const header = "会社名,URL,業種,セグメント,状態,送信日,追加日";
+  const lines = state.companies.map(c => {
+    const seg = SEGMENTS.find(s => s.id === c.segment);
+    return [c.name, c.url, c.industry, seg ? seg.name : "", c.status, c.sentAt, c.addedAt]
+      .map(v => `"${String(v || "").replace(/"/g, '""')}"`).join(",");
+  });
+  const blob = new Blob(["﻿" + [header, ...lines].join("\n")], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `form-sales-list-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ============ 共通 ============ */
+
+function copyText(text) {
+  if (!text) { showToast("コピーする内容がありません"); return; }
+  navigator.clipboard.writeText(text).then(
+    () => showToast("コピーしました"),
+    () => showToast("コピーに失敗しました")
+  );
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+/* ============ 初期化 ============ */
+
+loadState();
+restoreSettings();
+const savedKey = localStorage.getItem("gin-fso-apikey");
+if (savedKey) { $("in-api-key").value = savedKey; $("in-save-key").checked = true; }
+renderSegments();
+syncComposeControls();
+renderList();
+$("compose-company").addEventListener("change", renderMessage);
+</script>
+</body>
+</html>
