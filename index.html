@@ -325,6 +325,39 @@
 
 <!-- ========== ④ リスト管理 ========== -->
 <section class="panel" id="panel-list">
+  <div class="card">
+    <h2>🔎 候補リサーチ — 送り先そのものを探す</h2>
+    <p class="muted">業種と件数を選んで実行すると、Web検索で実在の候補事業者（「このサロン合いそう」「このショップは導入してくれるかも」）を探し、提案理由つきで下のリストに自動追加します（重複は自動スキップ）。</p>
+    <div class="grid3">
+      <label class="field">業種セグメント
+        <select id="research-segment"></select>
+      </label>
+      <label class="field">件数の目安
+        <select id="research-count">
+          <option value="10">10件</option>
+          <option value="20" selected>20件</option>
+          <option value="30">30件</option>
+        </select>
+      </label>
+      <label class="field">地域の指定（任意）
+        <input type="text" id="research-region" placeholder="例: 東京 / 関西 / 全国">
+      </label>
+    </div>
+    <div class="toolbar">
+      <button class="btn" id="btn-research" onclick="runResearch()">Claude APIで候補を探して追加（Web検索つき）</button>
+      <button class="btn secondary" onclick="copyText(buildResearchPrompt())">リサーチ用プロンプトをコピー（claude.aiに貼る）</button>
+      <button class="btn ghost" onclick="loadStarter()">スターター候補リスト（調査済み）を読み込む</button>
+    </div>
+    <details class="adv">
+      <summary>APIキーの設定（③タブと共通）</summary>
+      <label class="field" style="margin-top:8px;">Anthropic APIキー
+        <input type="password" id="in-api-key2" placeholder="sk-ant-...">
+      </label>
+      <p class="muted">APIキーがない場合: 「リサーチ用プロンプトをコピー」→ claude.ai（Web検索オン）に貼り付け → 返ってきた候補行を下の追加欄に貼り付けてください。</p>
+    </details>
+    <div id="research-status" class="muted" style="margin-top:8px;"></div>
+  </div>
+
   <div class="stat-row">
     <div class="stat"><div class="num" id="stat-total">0</div><div class="lbl">リスト総数</div></div>
     <div class="stat"><div class="num" id="stat-unsent">0</div><div class="lbl">未送信</div></div>
@@ -581,7 +614,7 @@ function syncComposeControls() {
     });
     if (cur && ranked.some(s => s.id === cur)) sel.value = cur;
   };
-  fill(segSel); fill(bulkSel);
+  fill(segSel); fill(bulkSel); fill($("research-segment"));
   $("compose-tone").value = state.settings.tone || "story";
 
   const cSel = $("compose-company");
@@ -762,6 +795,145 @@ async function callClaude() {
   }
 }
 
+/* ============ 候補リサーチ（送り先そのものを探す） ============ */
+
+function getApiKey() {
+  return ($("in-api-key2").value || $("in-api-key").value || "").trim();
+}
+
+function buildResearchPrompt() {
+  saveSettings();
+  const s = state.settings;
+  const seg = getSegment($("research-segment").value);
+  const n = $("research-count").value;
+  const region = $("research-region").value.trim();
+  const purpose = PURPOSES[s.purpose] || PURPOSES.wholesale;
+
+  return `あなたはBtoB営業の送り先候補リサーチ担当です。Web検索を使って、日本国内の「${seg.name}」を${n}件探してください。
+
+## 背景
+「${s.productName}」（${s.productCategory}。${s.productDesc} 価格・条件: ${s.price}）の${purpose.label}先の候補を探しています。
+この業種の狙い: ${seg.persona}
+${region ? `地域の希望: ${region}` : "地域: 全国（都市部中心でよい）"}
+
+## 要件
+1. 検索結果で実在が確認できた事業者のみ。名称・URLの捏造は絶対禁止。確信が持てないものは含めない。
+2. 公式サイトのURLを必ず記載する（問い合わせフォーム営業の対象になるため、公式サイトを持つところを優先）。
+3. 大手モールや巨大チェーンより、提案が決裁者に届きやすい中小規模の事業者を優先する。
+4. サイトに「営業目的の問い合わせ禁止」の記載を確認した事業者は含めない。
+5. 各件に「なぜこの事業者が合いそうか」の提案理由を1文（検索で得た事実に基づく）。
+6. 検索は複数回行ってよい。
+
+## 出力形式（厳守）
+<<<LIST>>> と <<<END>>> の間に、1行1件で次のパイプ区切り形式のみを出力する:
+名称 | URL | 業種メモ | 提案理由
+
+<<<LIST>>>
+（ここに${n}行）
+<<<END>>>`;
+}
+
+function parseResearchOutput(text) {
+  const m = text.match(/<<<LIST>>>([\s\S]*?)<<<END>>>/);
+  const block = m ? m[1] : text;
+  return block.split("\n").map(line => {
+    const parts = line.split("|").map(x => x.trim());
+    if (parts.length < 2 || !parts[0] || parts[0].startsWith("名称") || parts[0].startsWith("（")) return null;
+    const memo = parts[2] || "";
+    const reason = parts[3] || "";
+    return {
+      name: parts[0],
+      url: parts[1] || "",
+      industry: reason ? (memo ? `${memo}｜${reason}` : reason) : memo,
+    };
+  }).filter(Boolean);
+}
+
+async function runResearch() {
+  const key = getApiKey();
+  if (!key) {
+    showToast("APIキーを設定してください（キーがない場合はプロンプトコピーをご利用ください）");
+    return;
+  }
+  localStorage.setItem("gin-fso-apikey", key);
+
+  const btn = $("btn-research");
+  const status = $("research-status");
+  btn.disabled = true; btn.textContent = "検索中…（1〜3分かかります）";
+  status.textContent = "ClaudeがWeb検索で候補を探しています…";
+
+  const prompt = buildResearchPrompt();
+  const headers = {
+    "content-type": "application/json",
+    "x-api-key": key,
+    "anthropic-version": "2023-06-01",
+    "anthropic-dangerous-direct-browser-access": "true",
+  };
+  const tools = [{ type: "web_search_20260209", name: "web_search", max_uses: 10 }];
+
+  try {
+    let messages = [{ role: "user", content: prompt }];
+    let data = null;
+    // pause_turn（サーバー側ツールの継続）に備えて最大4回まで継続
+    for (let i = 0; i < 4; i++) {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST", headers,
+        body: JSON.stringify({
+          model: "claude-opus-4-8",
+          max_tokens: 8192,
+          thinking: { type: "adaptive" },
+          tools,
+          messages,
+        }),
+      });
+      data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message || `HTTPエラー ${res.status}`);
+      if (data.stop_reason === "refusal") throw new Error("リクエストが処理されませんでした。条件を変えてお試しください。");
+      if (data.stop_reason === "pause_turn") {
+        status.textContent = `検索を継続しています…（${i + 1}回目）`;
+        messages = [{ role: "user", content: prompt }, { role: "assistant", content: data.content }];
+        continue;
+      }
+      break;
+    }
+
+    const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+    const entries = parseResearchOutput(text);
+    if (!entries.length) throw new Error("候補を抽出できませんでした。件数や地域を変えて再実行してください。");
+
+    const { added, dups } = addCompanies(entries, $("research-segment").value);
+    status.innerHTML = `✅ ${added}社をリストに追加しました。` +
+      (dups.length ? ` <span class="dup-flag">⛔ 重複スキップ ${dups.length}社</span>` : "") +
+      " 各社の提案理由は「業種/セグメント」列に入っています。送信前に必ず各社のサイトを確認してください。";
+    showToast(`${added}社を追加しました`);
+  } catch (e) {
+    status.textContent = "エラー: " + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = "Claude APIで候補を探して追加（Web検索つき）";
+  }
+}
+
+async function loadStarter() {
+  const status = $("research-status");
+  try {
+    const res = await fetch("data/starter-candidates.tsv");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const text = await res.text();
+    const entries = text.split("\n").map(line => {
+      const p = line.split("\t").map(x => x.trim());
+      if (p.length < 3 || !p[1] || p[0] === "segment") return null;
+      return { segment: p[0], name: p[1], url: p[2] || "", industry: p[4] ? `${p[3]}｜${p[4]}` : (p[3] || "") };
+    }).filter(Boolean);
+    const { added, dups } = addCompanies(entries, "organic-shop");
+    status.innerHTML = `✅ スターター候補から${added}社を追加しました。` +
+      (dups.length ? ` <span class="dup-flag">⛔ 重複スキップ ${dups.length}社</span>` : "") +
+      " 送信前に必ず各社のサイトを確認してください。";
+    showToast(`${added}社を追加しました`);
+  } catch (e) {
+    status.textContent = "スターターリストを読み込めませんでした。公開URL（GitHub Pages）から開いた場合に利用できます。";
+  }
+}
+
 /* ============ ④ リスト管理・被り防止 ============ */
 
 function normalizeCompany(name) {
@@ -781,46 +953,51 @@ function normalizeDomain(url) {
   } catch (e) { return ""; }
 }
 
-function bulkAdd() {
-  const raw = $("in-bulk").value.trim();
-  if (!raw) { showToast("追加する行がありません"); return; }
-  const segId = $("in-bulk-segment").value;
+// entries: [{name, url, industry, segment?}] を重複チェックつきでリストに追加
+function addCompanies(entries, defaultSegId) {
   const existingNames = new Set(state.companies.map(c => normalizeCompany(c.name)));
   const existingDomains = new Set(state.companies.map(c => normalizeDomain(c.url)).filter(Boolean));
-
   let added = 0;
   const dups = [];
-  const seenInBatch = new Set();
 
-  raw.split("\n").forEach(line => {
-    const parts = line.split(/[,\t]/).map(x => x.trim());
-    const name = parts[0];
+  entries.forEach(e => {
+    const name = (e.name || "").trim();
     if (!name) return;
-    const url = parts[1] || "";
-    const industry = parts[2] || "";
     const nk = normalizeCompany(name);
-    const dk = normalizeDomain(url);
-    if (existingNames.has(nk) || seenInBatch.has(nk) || (dk && existingDomains.has(dk))) {
+    const dk = normalizeDomain(e.url);
+    if (existingNames.has(nk) || (dk && existingDomains.has(dk))) {
       dups.push(name);
       return;
     }
-    seenInBatch.add(nk);
+    existingNames.add(nk);
     if (dk) existingDomains.add(dk);
     state.companies.push({
       id: Date.now() + Math.floor(Math.random() * 100000) + added,
-      name, url, industry, segment: segId,
+      name, url: (e.url || "").trim(), industry: (e.industry || "").trim(),
+      segment: e.segment || defaultSegId,
       status: "unsent", sentAt: "", addedAt: new Date().toISOString().slice(0, 10),
     });
     added++;
   });
 
   persist();
+  renderList();
+  syncComposeControls();
+  return { added, dups };
+}
+
+function bulkAdd() {
+  const raw = $("in-bulk").value.trim();
+  if (!raw) { showToast("追加する行がありません"); return; }
+  const entries = raw.split("\n").map(line => {
+    const parts = line.split(/[,\t]/).map(x => x.trim());
+    return { name: parts[0], url: parts[1] || "", industry: parts[2] || "" };
+  });
+  const { added, dups } = addCompanies(entries, $("in-bulk-segment").value);
   $("in-bulk").value = "";
   $("dup-report").innerHTML = dups.length
     ? `✅ ${added}社を追加。 <span class="dup-flag">⛔ 重複スキップ ${dups.length}社:</span> ${dups.map(d => escHtml(d)).join(" / ")}`
     : `✅ ${added}社を追加しました（重複なし）。`;
-  renderList();
-  syncComposeControls();
 }
 
 function escHtml(t) { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
@@ -934,7 +1111,10 @@ function showToast(msg) {
 loadState();
 restoreSettings();
 const savedKey = localStorage.getItem("gin-fso-apikey");
-if (savedKey) { $("in-api-key").value = savedKey; $("in-save-key").checked = true; }
+if (savedKey) { $("in-api-key").value = savedKey; $("in-api-key2").value = savedKey; $("in-save-key").checked = true; }
+// ③と④のAPIキー欄を同期
+$("in-api-key").addEventListener("input", () => { $("in-api-key2").value = $("in-api-key").value; });
+$("in-api-key2").addEventListener("input", () => { $("in-api-key").value = $("in-api-key2").value; });
 renderSegments();
 syncComposeControls();
 renderList();
